@@ -51,11 +51,11 @@ def raw_to_risk(raw):
 
 class AldelVerifyPayload(BaseModel):
     page: str = "student"
-    avg_dwell: float = Field(125, ge=0, le=2000)
-    avg_flight: float = Field(150, ge=0, le=5000)
-    std_dwell: float = Field(12, ge=0, le=200)
-    std_flight: float = Field(18, ge=0, le=300)
-    mouse_speed: float = Field(400, ge=0, le=2000)
+    avg_dwell: float = Field(125, ge=0, le=10000)
+    avg_flight: float = Field(150, ge=0, le=30000)
+    std_dwell: float = Field(12, ge=0, le=1000)
+    std_flight: float = Field(18, ge=0, le=1000)
+    mouse_speed: float = Field(400, ge=0, le=5000)
     mouse_path: list = []
     clicks: list = []
     keystrokes: int = 0
