@@ -60,6 +60,7 @@ class AldelVerifyPayload(BaseModel):
     mouse_path: list = []
     clicks: list = []
     keystrokes: int = 0
+    duration_ms: int = 0
 
 
 class AldelAdminLogin(BaseModel):
@@ -85,10 +86,15 @@ async def aldel_websocket(ws: WebSocket):
 
 
 def bot_heuristics(p, risk: int) -> bool:
-    """Returns True if raw patterns look bot-like (additional gate)."""
+    """
+    Genuine: move to username -> click -> type -> move to password -> click -> type
+    -> move to captcha -> click -> type -> move to login -> click. Takes 5-15+ sec.
+    Bot: clicks, paste/fast fill, captcha API, instant paste. Under 4 sec, few key_events.
+    """
     mp = getattr(p, "mouse_path", []) or []
     cl = getattr(p, "clicks", []) or []
     ke = getattr(p, "key_events", []) or []
+    duration = getattr(p, "duration_ms", 0) or 0
     mp_len, cl_len, ke_len = len(mp), len(cl), len(ke)
     if mp_len < 5 and ke_len > 8:
         return True
@@ -98,7 +104,9 @@ def bot_heuristics(p, risk: int) -> bool:
         dwells = [e.get("up", 0) - e.get("down", 0) for e in ke if isinstance(e, dict) and "up" in e and "down" in e]
         if dwells and all(0 <= d <= 20 for d in dwells) and len(set(round(d) for d in dwells)) <= 2:
             return True
-    if risk >= 50 and (mp_len < 50 or cl_len < 3):
+    if duration > 0 and duration < 4000 and (ke_len > 5 or cl_len >= 1):
+        return True
+    if risk >= 50 and (mp_len < 40 or cl_len < 3):
         return True
     if getattr(p, "avg_dwell", 125) <= 65 and getattr(p, "std_dwell", 12) <= 8 and ke_len > 5:
         return True
@@ -130,6 +138,7 @@ async def aldel_verify(p: AldelVerifyPayload):
             "std_dwell": p.std_dwell,
             "std_flight": p.std_flight,
             "mouse_speed": p.mouse_speed,
+            "duration_ms": getattr(p, "duration_ms", 0),
             "mouse_path_len": len(getattr(p, "mouse_path", []) or []),
             "clicks_len": len(getattr(p, "clicks", []) or []),
             "key_events_len": len(getattr(p, "key_events", []) or []),
