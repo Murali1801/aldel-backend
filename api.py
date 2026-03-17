@@ -56,6 +56,7 @@ class AldelVerifyPayload(BaseModel):
     std_dwell: float = Field(12, ge=0, le=1000)
     std_flight: float = Field(18, ge=0, le=1000)
     mouse_speed: float = Field(400, ge=0, le=5000)
+    key_events: list = []
     mouse_path: list = []
     clicks: list = []
     keystrokes: int = 0
@@ -83,6 +84,22 @@ async def aldel_websocket(ws: WebSocket):
         pass
 
 
+def bot_heuristics(p) -> bool:
+    """Returns True if raw patterns look bot-like (additional gate)."""
+    mp = getattr(p, "mouse_path", []) or []
+    cl = getattr(p, "clicks", []) or []
+    ke = getattr(p, "key_events", []) or []
+    if len(mp) < 5 and len(ke) > 8:
+        return True
+    if len(cl) == 0 and len(ke) > 15 and len(mp) < 20:
+        return True
+    if len(ke) >= 4:
+        dwells = [e.get("up", 0) - e.get("down", 0) for e in ke if isinstance(e, dict) and "up" in e and "down" in e]
+        if dwells and all(0 <= d <= 15 for d in dwells) and len(set(round(d) for d in dwells)) <= 2:
+            return True
+    return False
+
+
 @app.post("/aldel/verify")
 async def aldel_verify(p: AldelVerifyPayload):
     if not model_data or model_data["model"] is None:
@@ -92,7 +109,8 @@ async def aldel_verify(p: AldelVerifyPayload):
     pred = model.predict(X)[0]
     raw = model.decision_function(X)[0]
     risk = raw_to_risk(raw)
-    granted = pred == 1 or risk <= 95
+    bot_like = bot_heuristics(p)
+    granted = (pred == 1 or risk <= 75) and not bot_like
     rec = {
         "id": len(aldel_attempts) + 1,
         "timestamp": datetime.utcnow().isoformat() + "Z",
@@ -100,7 +118,17 @@ async def aldel_verify(p: AldelVerifyPayload):
         "risk_score": risk,
         "raw_score": float(raw),
         "access_granted": granted,
-        "biometrics": {"avg_dwell": p.avg_dwell, "avg_flight": p.avg_flight, "std_dwell": p.std_dwell, "std_flight": p.std_flight, "mouse_speed": p.mouse_speed},
+        "bot_heuristic_blocked": bot_like,
+        "biometrics": {
+            "avg_dwell": p.avg_dwell,
+            "avg_flight": p.avg_flight,
+            "std_dwell": p.std_dwell,
+            "std_flight": p.std_flight,
+            "mouse_speed": p.mouse_speed,
+            "mouse_path_len": len(getattr(p, "mouse_path", []) or []),
+            "clicks_len": len(getattr(p, "clicks", []) or []),
+            "key_events_len": len(getattr(p, "key_events", []) or []),
+        },
     }
     aldel_attempts.insert(0, rec)
     aldel_attempts[:] = aldel_attempts[:200]
