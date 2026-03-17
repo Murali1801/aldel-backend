@@ -45,8 +45,15 @@ def features_to_array(avg_dwell, avg_flight, std_dwell, std_flight, mouse_speed)
 
 
 def raw_to_risk(raw):
+    """
+    Map Isolation Forest decision_function to risk 0-100.
+    Genuine (inlier, raw > 0) → low risk 0-35.
+    Anomaly (outlier, raw < 0) → high risk 35-100.
+    """
     r = np.clip(float(raw), -0.5, 0.5)
-    return int(100 * (1 - (r + 0.5)))
+    if r >= 0:
+        return int(70 * (0.5 - r))  # raw 0.5→0, raw 0→35
+    return int(35 + 65 * (0 - r) / 0.5)  # raw 0→35, raw -0.5→100
 
 
 class AldelVerifyPayload(BaseModel):
@@ -123,7 +130,7 @@ async def aldel_verify(p: AldelVerifyPayload):
     raw = model.decision_function(X)[0]
     risk = raw_to_risk(raw)
     bot_like = bot_heuristics(p, risk)
-    granted = (pred == 1 or risk <= 75) and not bot_like
+    granted = (pred == 1 or risk <= 45) and not bot_like
     rec = {
         "id": len(aldel_attempts) + 1,
         "timestamp": datetime.utcnow().isoformat() + "Z",
