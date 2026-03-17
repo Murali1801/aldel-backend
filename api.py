@@ -96,8 +96,12 @@ def bot_heuristics(p, risk: int) -> bool:
     """
     Genuine: move to username -> click -> type -> move to password -> click -> type
     -> move to captcha -> click -> type -> move to login -> click. Takes 5-15+ sec.
-    Bot: clicks, paste/fast fill, captcha API, instant paste. Under 4 sec, few key_events.
+    High dwell (e.g. 2000ms) = strong genuine signal (humans pause; bots paste with low dwell).
+    Bot: paste/fast fill, captcha API. Under 4 sec, few key_events.
     """
+    avg_dwell = getattr(p, "avg_dwell", 125) or 125
+    if avg_dwell >= 1500:
+        return False  # High dwell = genuine human
     mp = getattr(p, "mouse_path", []) or []
     cl = getattr(p, "clicks", []) or []
     ke = getattr(p, "key_events", []) or []
@@ -115,7 +119,7 @@ def bot_heuristics(p, risk: int) -> bool:
         return True
     if risk >= 50 and (mp_len < 40 or cl_len < 3):
         return True
-    if getattr(p, "avg_dwell", 125) <= 65 and getattr(p, "std_dwell", 12) <= 8 and ke_len > 5:
+    if avg_dwell <= 65 and getattr(p, "std_dwell", 12) <= 8 and ke_len > 5:
         return True
     return False
 
@@ -130,7 +134,9 @@ async def aldel_verify(p: AldelVerifyPayload):
     raw = model.decision_function(X)[0]
     risk = raw_to_risk(raw)
     bot_like = bot_heuristics(p, risk)
-    granted = (pred == 1 or risk <= 45) and not bot_like
+    high_dwell = (getattr(p, "avg_dwell", 0) or 0) >= 1500  # Strong genuine signal
+    risk_ok = risk <= (65 if high_dwell else 45)
+    granted = (pred == 1 or risk_ok) and not bot_like
     rec = {
         "id": len(aldel_attempts) + 1,
         "timestamp": datetime.utcnow().isoformat() + "Z",
