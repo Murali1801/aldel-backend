@@ -98,7 +98,9 @@ def bot_heuristics(p, risk: int) -> bool:
         dwells = [e.get("up", 0) - e.get("down", 0) for e in ke if isinstance(e, dict) and "up" in e and "down" in e]
         if dwells and all(0 <= d <= 20 for d in dwells) and len(set(round(d) for d in dwells)) <= 2:
             return True
-    if risk >= 55 and (mp_len < 30 or cl_len < 2):
+    if risk >= 50 and (mp_len < 50 or cl_len < 3):
+        return True
+    if getattr(p, "avg_dwell", 125) <= 65 and getattr(p, "std_dwell", 12) <= 8 and ke_len > 5:
         return True
     return False
 
