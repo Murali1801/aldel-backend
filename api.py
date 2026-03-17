@@ -95,7 +95,7 @@ async def aldel_verify(p: AldelVerifyPayload):
     granted = pred == 1 or risk <= 95
     rec = {
         "id": len(aldel_attempts) + 1,
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": datetime.utcnow().isoformat() + "Z",
         "page": p.page,
         "risk_score": risk,
         "raw_score": float(raw),
