@@ -84,19 +84,22 @@ async def aldel_websocket(ws: WebSocket):
         pass
 
 
-def bot_heuristics(p) -> bool:
+def bot_heuristics(p, risk: int) -> bool:
     """Returns True if raw patterns look bot-like (additional gate)."""
     mp = getattr(p, "mouse_path", []) or []
     cl = getattr(p, "clicks", []) or []
     ke = getattr(p, "key_events", []) or []
-    if len(mp) < 5 and len(ke) > 8:
+    mp_len, cl_len, ke_len = len(mp), len(cl), len(ke)
+    if mp_len < 5 and ke_len > 8:
         return True
-    if len(cl) == 0 and len(ke) > 15 and len(mp) < 20:
+    if cl_len == 0 and ke_len > 10 and mp_len < 25:
         return True
-    if len(ke) >= 4:
+    if ke_len >= 4:
         dwells = [e.get("up", 0) - e.get("down", 0) for e in ke if isinstance(e, dict) and "up" in e and "down" in e]
-        if dwells and all(0 <= d <= 15 for d in dwells) and len(set(round(d) for d in dwells)) <= 2:
+        if dwells and all(0 <= d <= 20 for d in dwells) and len(set(round(d) for d in dwells)) <= 2:
             return True
+    if risk >= 55 and (mp_len < 30 or cl_len < 2):
+        return True
     return False
 
 
@@ -109,7 +112,7 @@ async def aldel_verify(p: AldelVerifyPayload):
     pred = model.predict(X)[0]
     raw = model.decision_function(X)[0]
     risk = raw_to_risk(raw)
-    bot_like = bot_heuristics(p)
+    bot_like = bot_heuristics(p, risk)
     granted = (pred == 1 or risk <= 75) and not bot_like
     rec = {
         "id": len(aldel_attempts) + 1,
