@@ -92,7 +92,7 @@ async def aldel_verify(p: AldelVerifyPayload):
     pred = model.predict(X)[0]
     raw = model.decision_function(X)[0]
     risk = raw_to_risk(raw)
-    granted = pred == 1 or risk <= 75
+    granted = pred == 1 or risk <= 95
     rec = {
         "id": len(aldel_attempts) + 1,
         "timestamp": datetime.utcnow().isoformat(),
